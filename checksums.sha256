@@ -1,0 +1,7 @@
+# SHA256 checksums for ICO Claude Global Agents & Skills Library releases
+# Verify with: sha256sum -c checksums.sha256
+#
+# These checksums are for the GitHub release tarballs:
+# https://github.com/International-Certification-Org/ico-claude-global-agent-skill-library/archive/refs/tags/<version>.tar.gz
+
+e208f67711864174914f8126dc0b6401ca51c15e5d1dce3ec9bddb07df175dc0  v1.0.0.tar.gz

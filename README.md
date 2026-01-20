@@ -57,6 +57,16 @@ icgasl --help            # Show this help
 
 The sync copies `agents/`, `skills/`, `runbooks/` and `templates/` to `~/.config/claude` or `~/.claude`.
 
+## Security
+
+Downloads are protected by:
+- **HTTPS enforcement** - All downloads require HTTPS
+- **Domain whitelist** - Only `github.com` and `raw.githubusercontent.com` are trusted
+- **Checksum verification** - Release tarballs are verified against SHA256 checksums
+- **Versioned releases** - Downloads use tagged versions for reproducibility
+
+Checksums for releases are available in `checksums.sha256`.
+
 ## Usage in Prompts
 
 Once installed, you can reference these definitions in your prompts to Claude Code CLI. For example:

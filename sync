@@ -115,14 +115,37 @@ log_verbose "Target directory: $TARGET_DIR"
 # Validate URL before downloading
 validate_url "$REPO_TARBALL" || exit 1
 
-echo "Downloading ICO Claude Global Agents & Skills Library..."
+echo "Downloading ICO Claude Global Agents & Skills Library v${ICGASL_VERSION}..."
 log_verbose "Downloading from: $REPO_TARBALL"
-curl -fsSL "$REPO_TARBALL" | tar -xz -C "$TMP_DIR"
-EXTRACTED_DIR="$TMP_DIR/ico-claude-global-agent-skill-library-main"
+
+# Download tarball to file for checksum verification
+TARBALL_FILE="$TMP_DIR/release.tar.gz"
+if ! curl -fsSL "$REPO_TARBALL" -o "$TARBALL_FILE"; then
+  echo "ERROR: Failed to download tarball" >&2
+  exit 1
+fi
+
+# Verify checksum
+if [[ -n "${REPO_TARBALL_CHECKSUM:-}" ]]; then
+  log_verbose "Verifying checksum..."
+  if ! verify_checksum "$TARBALL_FILE" "$REPO_TARBALL_CHECKSUM"; then
+    echo "ERROR: Checksum verification failed! The download may be corrupted or tampered with." >&2
+    exit 1
+  fi
+  echo "Checksum verified."
+fi
+
+# Extract tarball
+if ! tar -xzf "$TARBALL_FILE" -C "$TMP_DIR"; then
+  echo "ERROR: Failed to extract tarball" >&2
+  exit 1
+fi
+
+EXTRACTED_DIR="$TMP_DIR/${EXTRACTED_DIR_NAME}"
 
 # Validate extracted directory exists
 if [ ! -d "$EXTRACTED_DIR" ]; then
-  echo "ERROR: Failed to extract tarball - expected directory not found" >&2
+  echo "ERROR: Failed to extract tarball - expected directory not found: $EXTRACTED_DIR_NAME" >&2
   exit 1
 fi
 log_verbose "Extracted to: $EXTRACTED_DIR"

@@ -10,15 +10,26 @@
 # Trusted domains for downloads (security: only allow known hosts)
 TRUSTED_DOMAINS=("github.com" "raw.githubusercontent.com")
 
+# Current version
+ICGASL_VERSION="1.0.0"
+
 # Repository URLs (exported for use by sourcing scripts)
 # shellcheck disable=SC2034
-REPO_TARBALL="https://github.com/International-Certification-Org/ico-claude-global-agent-skill-library/archive/main.tar.gz"
+REPO_TARBALL="https://github.com/International-Certification-Org/ico-claude-global-agent-skill-library/archive/refs/tags/v${ICGASL_VERSION}.tar.gz"
 # shellcheck disable=SC2034
-ICGASL_URL="https://raw.githubusercontent.com/International-Certification-Org/ico-claude-global-agent-skill-library/main/icgasl"
+ICGASL_URL="https://raw.githubusercontent.com/International-Certification-Org/ico-claude-global-agent-skill-library/v${ICGASL_VERSION}/icgasl"
 
-# Checksums file URL (optional - if exists, will be used for verification)
+# Checksums file URL
 # shellcheck disable=SC2034
 CHECKSUMS_URL="https://raw.githubusercontent.com/International-Certification-Org/ico-claude-global-agent-skill-library/main/checksums.sha256"
+
+# Expected checksum for current version tarball
+# shellcheck disable=SC2034
+REPO_TARBALL_CHECKSUM="e208f67711864174914f8126dc0b6401ca51c15e5d1dce3ec9bddb07df175dc0"
+
+# Extracted directory name for the tarball
+# shellcheck disable=SC2034
+EXTRACTED_DIR_NAME="ico-claude-global-agent-skill-library-${ICGASL_VERSION}"
 
 # Security: Validate URL against trusted domains
 # Usage: validate_url "https://example.com/file"
