@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#
+# icgasl - ICO Claude Global Agents & Skills Library
+#
+# Usage:
+#   icgasl         Install/update agents & skills
+#   icgasl --help  Show this help
+
+set -euo pipefail
+
+TARBALL_URL="https://github.com/International-Certification-Org/ico-claude-global-agent-skill-library/archive/main.tar.gz"
+
+show_help() {
+  echo "icgasl - ICO Claude Global Agents & Skills Library"
+  echo ""
+  echo "Usage:"
+  echo "  icgasl         Install/update agents & skills"
+  echo "  icgasl --help  Show this help"
+}
+
+run_sync() {
+  # Download tarball and extract sync script (bypasses CDN cache)
+  TMP_DIR="$(mktemp -d)"
+  trap 'rm -rf "$TMP_DIR"' EXIT
+  curl -fsSL "$TARBALL_URL" | tar -xz -C "$TMP_DIR"
+  bash "$TMP_DIR/ico-claude-global-agent-skill-library-main/sync" "$@"
+}
+
+case "${1:-}" in
+  -h|--help)
+    show_help
+    ;;
+  "")
+    run_sync
+    ;;
+  *)
+    echo "Unknown option: $1"
+    show_help
+    exit 1
+    ;;
+esac
