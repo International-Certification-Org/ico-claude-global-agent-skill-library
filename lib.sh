@@ -11,7 +11,7 @@
 TRUSTED_DOMAINS=("github.com" "raw.githubusercontent.com")
 
 # Current version
-ICGASL_VERSION="1.0.0"
+ICGASL_VERSION="1.0.1"
 
 # Repository URLs (exported for use by sourcing scripts)
 # shellcheck disable=SC2034
@@ -25,7 +25,7 @@ CHECKSUMS_URL="https://raw.githubusercontent.com/International-Certification-Org
 
 # Expected checksum for current version tarball
 # shellcheck disable=SC2034
-REPO_TARBALL_CHECKSUM="e208f67711864174914f8126dc0b6401ca51c15e5d1dce3ec9bddb07df175dc0"
+REPO_TARBALL_CHECKSUM="222ba585d50c0b4db39db7e56032784e837fa7d1a9846cd304762434dde34908"
 
 # Extracted directory name for the tarball
 # shellcheck disable=SC2034
