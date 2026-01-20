@@ -8,34 +8,150 @@
 
 set -euo pipefail
 
-REPO_TARBALL="https://github.com/International-Certification-Org/ico-claude-global-agent-skill-library/archive/main.tar.gz"
+# Source shared library (handle both local and extracted contexts)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "$SCRIPT_DIR/lib.sh" ]]; then
+  # shellcheck source=lib.sh
+  source "$SCRIPT_DIR/lib.sh"
+else
+  echo "ERROR: lib.sh not found in $SCRIPT_DIR" >&2
+  exit 1
+fi
+
+# Ensure required commands are available
+require_commands curl tar diff || exit 1
 
 # Determine the target directory for Claude configuration
-if [ -d "$HOME/.config/claude" ]; then
-  TARGET_DIR="$HOME/.config/claude"
+TARGET_DIR="$(get_target_dir)"
+
+# Parse arguments
+DRY_RUN=0
+BACKUP=0
+UNINSTALL=0
+VERBOSE=0
+ONLY_AGENTS=0
+ONLY_SKILLS=0
+ONLY_RUNBOOKS=0
+ONLY_TEMPLATES=0
+
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run)
+      DRY_RUN=1
+      ;;
+    --backup)
+      BACKUP=1
+      ;;
+    --uninstall)
+      UNINSTALL=1
+      ;;
+    --verbose)
+      VERBOSE=1
+      ;;
+    --only-agents)
+      ONLY_AGENTS=1
+      ;;
+    --only-skills)
+      ONLY_SKILLS=1
+      ;;
+    --only-runbooks)
+      ONLY_RUNBOOKS=1
+      ;;
+    --only-templates)
+      ONLY_TEMPLATES=1
+      ;;
+    *)
+      ;;
+  esac
+done
+
+log_verbose "Arguments parsed: dry_run=$DRY_RUN backup=$BACKUP uninstall=$UNINSTALL verbose=$VERBOSE"
+
+# Determine which directories to process
+if [ "$ONLY_AGENTS" -eq 1 ] || [ "$ONLY_SKILLS" -eq 1 ] || [ "$ONLY_RUNBOOKS" -eq 1 ] || [ "$ONLY_TEMPLATES" -eq 1 ]; then
+  DIRS=()
+  [ "$ONLY_AGENTS" -eq 1 ] && DIRS+=("agents")
+  [ "$ONLY_SKILLS" -eq 1 ] && DIRS+=("skills")
+  [ "$ONLY_RUNBOOKS" -eq 1 ] && DIRS+=("runbooks")
+  [ "$ONLY_TEMPLATES" -eq 1 ] && DIRS+=("templates")
 else
-  TARGET_DIR="$HOME/.claude"
+  DIRS=(agents skills runbooks templates)
+fi
+
+# Handle uninstall
+if [ "$UNINSTALL" -eq 1 ]; then
+  echo "Uninstalling icgasl from $TARGET_DIR..."
+  for dir in "${DIRS[@]}"; do
+    if [ -d "$TARGET_DIR/$dir" ]; then
+      if [ "$DRY_RUN" -eq 1 ]; then
+        echo "   Would remove: $TARGET_DIR/$dir/"
+      else
+        rm -rf "${TARGET_DIR:?}/${dir:?}"
+        echo "   Removed: $TARGET_DIR/$dir/"
+      fi
+    fi
+  done
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo ""
+    echo "DRY RUN - No changes made"
+  else
+    echo "Uninstalled successfully"
+  fi
+  exit 0
 fi
 
 # Ensure target subdirectories exist
-mkdir -p "$TARGET_DIR"/{agents,skills,runbooks,templates}
+for dir in "${DIRS[@]}"; do
+  mkdir -p "$TARGET_DIR/$dir"
+done
 
 # Download and extract repo tarball
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
+log_verbose "Created temp directory: $TMP_DIR"
+log_verbose "Target directory: $TARGET_DIR"
+
+# Validate URL before downloading
+validate_url "$REPO_TARBALL" || exit 1
+
 echo "Downloading ICO Claude Global Agents & Skills Library..."
+log_verbose "Downloading from: $REPO_TARBALL"
 curl -fsSL "$REPO_TARBALL" | tar -xz -C "$TMP_DIR"
 EXTRACTED_DIR="$TMP_DIR/ico-claude-global-agent-skill-library-main"
 
+# Validate extracted directory exists
+if [ ! -d "$EXTRACTED_DIR" ]; then
+  echo "ERROR: Failed to extract tarball - expected directory not found" >&2
+  exit 1
+fi
+log_verbose "Extracted to: $EXTRACTED_DIR"
+
 # Compare and show changes
 echo ""
+# Create backup if requested
+if [ "$BACKUP" -eq 1 ]; then
+  BACKUP_DIR="$TARGET_DIR/backup-$(date +%Y-%m-%d-%H%M%S)"
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "Would create backup at: $BACKUP_DIR"
+  else
+    mkdir -p "$BACKUP_DIR"
+    for dir in "${DIRS[@]}"; do
+      if [ -d "$TARGET_DIR/$dir" ] && [ "$(ls -A "$TARGET_DIR/$dir" 2>/dev/null)" ]; then
+        cp -r "$TARGET_DIR/$dir" "$BACKUP_DIR/"
+      fi
+    done
+    echo "Backup created: $BACKUP_DIR"
+  fi
+  echo ""
+fi
+
 NEW_FILES=()
 MODIFIED_FILES=()
 LOCAL_ONLY=()
 UNCHANGED=0
 
-for dir in agents skills runbooks templates; do
+for dir in "${DIRS[@]}"; do
   # Check for new/modified from repo
   if [ -d "$EXTRACTED_DIR/$dir" ]; then
     for file in "$EXTRACTED_DIR/$dir"/*; do
@@ -87,22 +203,37 @@ if [ ${#LOCAL_ONLY[@]} -gt 0 ]; then
   for f in "${LOCAL_ONLY[@]}"; do echo "   ? $f"; done
 fi
 
+if [ "$DRY_RUN" -eq 1 ]; then
+  echo ""
+  echo "DRY RUN - No changes will be made"
+fi
+
 if [ ${#NEW_FILES[@]} -eq 0 ] && [ ${#MODIFIED_FILES[@]} -eq 0 ]; then
   echo "Already up to date ($UNCHANGED files)"
+elif [ "$DRY_RUN" -eq 1 ]; then
+  echo "Would update: ${#NEW_FILES[@]} new, ${#MODIFIED_FILES[@]} modified, $UNCHANGED unchanged"
 else
   # Actually copy the files
   echo ""
   echo "Installing into $TARGET_DIR..."
-  cp -r "$EXTRACTED_DIR/agents/." "$TARGET_DIR/agents/"
-  cp -r "$EXTRACTED_DIR/skills/." "$TARGET_DIR/skills/"
-  cp -r "$EXTRACTED_DIR/runbooks/." "$TARGET_DIR/runbooks/"
-  cp -r "$EXTRACTED_DIR/templates/." "$TARGET_DIR/templates/"
+  for dir in "${DIRS[@]}"; do
+    if [ -d "$EXTRACTED_DIR/$dir" ]; then
+      cp -r "$EXTRACTED_DIR/$dir/." "$TARGET_DIR/$dir/"
+    fi
+  done
   echo "Updated: ${#NEW_FILES[@]} new, ${#MODIFIED_FILES[@]} modified, $UNCHANGED unchanged"
 fi
 
-# Cleanup: remove .zip artifacts from skills directory
-ZIP_COUNT=$(find "$TARGET_DIR/skills" -name "*.zip" 2>/dev/null | wc -l)
-if [ "$ZIP_COUNT" -gt 0 ]; then
-  rm -f "$TARGET_DIR/skills"/*.zip
-  echo "Cleaned up $ZIP_COUNT .zip artifact(s)"
+# Cleanup: remove .zip artifacts from skills directory (skip in dry-run, only if skills are processed)
+SKILLS_SELECTED=0
+for d in "${DIRS[@]}"; do
+  [ "$d" = "skills" ] && SKILLS_SELECTED=1
+done
+
+if [ "$DRY_RUN" -eq 0 ] && [ "$SKILLS_SELECTED" -eq 1 ]; then
+  ZIP_COUNT=$(find "$TARGET_DIR/skills" -name "*.zip" 2>/dev/null | wc -l)
+  if [ "$ZIP_COUNT" -gt 0 ]; then
+    rm -f "$TARGET_DIR/skills"/*.zip
+    echo "Cleaned up $ZIP_COUNT .zip artifact(s)"
+  fi
 fi

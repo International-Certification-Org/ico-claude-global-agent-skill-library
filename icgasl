@@ -3,19 +3,42 @@
 # icgasl - ICO Claude Global Agents & Skills Library
 #
 # Usage:
-#   icgasl         Install/update agents & skills
-#   icgasl --help  Show this help
+#   icgasl                   Install/update agents & skills
+#   icgasl --dry-run         Show what would change without applying
+#   icgasl --only-agents     Install only agents
+#   icgasl --only-skills     Install only skills
+#   icgasl --only-runbooks   Install only runbooks
+#   icgasl --only-templates  Install only templates
+#   icgasl --backup          Create backup before updating
+#   icgasl --uninstall       Remove all installed files
+#   icgasl --verbose         Show detailed debug output
+#   icgasl --version         Show version
+#   icgasl --help            Show this help
 
 set -euo pipefail
 
+VERSION="1.0.0"
 TARBALL_URL="https://github.com/International-Certification-Org/ico-claude-global-agent-skill-library/archive/main.tar.gz"
 
 show_help() {
   echo "icgasl - ICO Claude Global Agents & Skills Library"
   echo ""
   echo "Usage:"
-  echo "  icgasl         Install/update agents & skills"
-  echo "  icgasl --help  Show this help"
+  echo "  icgasl                   Install/update agents & skills"
+  echo "  icgasl --dry-run         Show what would change without applying"
+  echo "  icgasl --only-agents     Install only agents"
+  echo "  icgasl --only-skills     Install only skills"
+  echo "  icgasl --only-runbooks   Install only runbooks"
+  echo "  icgasl --only-templates  Install only templates"
+  echo "  icgasl --backup          Create backup before updating"
+  echo "  icgasl --uninstall       Remove all installed files"
+  echo "  icgasl --verbose         Show detailed debug output"
+  echo "  icgasl --version         Show version"
+  echo "  icgasl --help            Show this help"
+}
+
+show_version() {
+  echo "icgasl v$VERSION"
 }
 
 run_sync() {
@@ -26,16 +49,27 @@ run_sync() {
   bash "$TMP_DIR/ico-claude-global-agent-skill-library-main/sync" "$@"
 }
 
-case "${1:-}" in
-  -h|--help)
-    show_help
-    ;;
-  "")
-    run_sync
-    ;;
-  *)
-    echo "Unknown option: $1"
-    show_help
-    exit 1
-    ;;
-esac
+# Collect flags to pass to sync
+FLAGS=()
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help)
+      show_help
+      exit 0
+      ;;
+    -v|--version)
+      show_version
+      exit 0
+      ;;
+    --dry-run|--backup|--uninstall|--verbose|--only-agents|--only-skills|--only-runbooks|--only-templates)
+      FLAGS+=("$arg")
+      ;;
+    *)
+      echo "Unknown option: $arg"
+      show_help
+      exit 1
+      ;;
+  esac
+done
+
+run_sync "${FLAGS[@]+"${FLAGS[@]}"}"

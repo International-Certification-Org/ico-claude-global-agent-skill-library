@@ -41,14 +41,23 @@ curl -fsSL https://raw.githubusercontent.com/International-Certification-Org/ico
 
 ### Usage
 
-Install/update agents & skills:
 ```bash
-icgasl
+icgasl                   # Install/update agents & skills
+icgasl --dry-run         # Show what would change without applying
+icgasl --only-agents     # Install only agents
+icgasl --only-skills     # Install only skills
+icgasl --only-runbooks   # Install only runbooks
+icgasl --only-templates  # Install only templates
+icgasl --backup          # Create backup before updating
+icgasl --uninstall       # Remove all installed files
+icgasl --verbose         # Show detailed debug output
+icgasl --version         # Show version
+icgasl --help            # Show this help
 ```
 
 The sync copies `agents/`, `skills/`, `runbooks/` and `templates/` to `~/.config/claude` or `~/.claude`.
 
-## Usage
+## Usage in Prompts
 
 Once installed, you can reference these definitions in your prompts to Claude Code CLI. For example:
 
