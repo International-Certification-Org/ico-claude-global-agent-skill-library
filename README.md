@@ -34,6 +34,11 @@ Global install (`/usr/local/bin/icgasl`, requires sudo):
 curl -fsSL https://raw.githubusercontent.com/International-Certification-Org/ico-claude-global-agent-skill-library/main/install | bash -s -- --global
 ```
 
+Both locations (user + global):
+```bash
+curl -fsSL https://raw.githubusercontent.com/International-Certification-Org/ico-claude-global-agent-skill-library/main/install | bash -s -- --all
+```
+
 ### Usage
 
 Install/update agents & skills:
