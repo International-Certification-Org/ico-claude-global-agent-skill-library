@@ -25,7 +25,7 @@ CHECKSUMS_URL="https://raw.githubusercontent.com/International-Certification-Org
 
 # Expected checksum for current version tarball
 # shellcheck disable=SC2034
-REPO_TARBALL_CHECKSUM="222ba585d50c0b4db39db7e56032784e837fa7d1a9846cd304762434dde34908"
+REPO_TARBALL_CHECKSUM="f77f416aae3e014d4b2b65db7da9f4507af7d6d2dfe1299ee6e9cb1fdff44671"
 
 # Extracted directory name for the tarball
 # shellcheck disable=SC2034
