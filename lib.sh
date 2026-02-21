@@ -11,7 +11,7 @@
 TRUSTED_DOMAINS=("github.com" "raw.githubusercontent.com")
 
 # Current version
-ICGASL_VERSION="1.0.1"
+ICGASL_VERSION="1.1.0"
 
 # Repository URLs (exported for use by sourcing scripts)
 # shellcheck disable=SC2034

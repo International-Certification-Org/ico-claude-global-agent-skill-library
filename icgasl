@@ -20,7 +20,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.1"
+VERSION="1.1.0"
 TARBALL_URL="https://github.com/International-Certification-Org/ico-claude-global-agent-skill-library/archive/refs/tags/v${VERSION}.tar.gz"
 TARBALL_CHECKSUM="222ba585d50c0b4db39db7e56032784e837fa7d1a9846cd304762434dde34908"
 EXTRACTED_DIR_NAME="ico-claude-global-agent-skill-library-${VERSION}"
