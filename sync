@@ -3,8 +3,9 @@
 # ICO Global Claude Agents & Skills installation script
 #
 # This script copies the contents of the `agents/`, `skills/`, `runbooks/` and
-# `templates/` directories into the user's global Claude configuration
-# directory. The script may be invoked via `curl -fsSL <repo>/sync | bash`.
+# `templates/` directories into the user's Claude configuration directory.
+# Supports --global (default), --local (project-level), or both.
+# The script may be invoked via `curl -fsSL <repo>/sync | bash`.
 
 set -euo pipefail
 
@@ -21,14 +22,13 @@ fi
 # Ensure required commands are available
 require_commands curl tar diff || exit 1
 
-# Determine the target directory for Claude configuration
-TARGET_DIR="$(get_target_dir)"
-
 # Parse arguments
 DRY_RUN=0
 BACKUP=0
 UNINSTALL=0
 VERBOSE=0
+FLAG_LOCAL=0
+FLAG_GLOBAL=0
 ONLY_AGENTS=0
 ONLY_SKILLS=0
 ONLY_RUNBOOKS=0
@@ -48,6 +48,12 @@ for arg in "$@"; do
     --verbose)
       VERBOSE=1
       ;;
+    --local)
+      FLAG_LOCAL=1
+      ;;
+    --global)
+      FLAG_GLOBAL=1
+      ;;
     --only-agents)
       ONLY_AGENTS=1
       ;;
@@ -65,7 +71,20 @@ for arg in "$@"; do
   esac
 done
 
-log_verbose "Arguments parsed: dry_run=$DRY_RUN backup=$BACKUP uninstall=$UNINSTALL verbose=$VERBOSE"
+log_verbose "Arguments parsed: dry_run=$DRY_RUN backup=$BACKUP uninstall=$UNINSTALL verbose=$VERBOSE local=$FLAG_LOCAL global=$FLAG_GLOBAL"
+
+# Resolve target directories (may return multiple lines)
+TARGET_DIRS=()
+while IFS= read -r dir; do
+  [[ -n "$dir" ]] && TARGET_DIRS+=("$dir")
+done < <(resolve_target_dirs "$FLAG_LOCAL" "$FLAG_GLOBAL")
+
+if [[ ${#TARGET_DIRS[@]} -eq 0 ]]; then
+  echo "ERROR: No target directories resolved" >&2
+  exit 1
+fi
+
+log_verbose "Target directories: ${TARGET_DIRS[*]}"
 
 # Determine which directories to process
 if [ "$ONLY_AGENTS" -eq 1 ] || [ "$ONLY_SKILLS" -eq 1 ] || [ "$ONLY_RUNBOOKS" -eq 1 ] || [ "$ONLY_TEMPLATES" -eq 1 ]; then
@@ -80,16 +99,18 @@ fi
 
 # Handle uninstall
 if [ "$UNINSTALL" -eq 1 ]; then
-  echo "Uninstalling icgasl from $TARGET_DIR..."
-  for dir in "${DIRS[@]}"; do
-    if [ -d "$TARGET_DIR/$dir" ]; then
-      if [ "$DRY_RUN" -eq 1 ]; then
-        echo "   Would remove: $TARGET_DIR/$dir/"
-      else
-        rm -rf "${TARGET_DIR:?}/${dir:?}"
-        echo "   Removed: $TARGET_DIR/$dir/"
+  for TARGET_DIR in "${TARGET_DIRS[@]}"; do
+    echo "Uninstalling icgasl from $TARGET_DIR..."
+    for dir in "${DIRS[@]}"; do
+      if [ -d "$TARGET_DIR/$dir" ]; then
+        if [ "$DRY_RUN" -eq 1 ]; then
+          echo "   Would remove: $TARGET_DIR/$dir/"
+        else
+          rm -rf "${TARGET_DIR:?}/${dir:?}"
+          echo "   Removed: $TARGET_DIR/$dir/"
+        fi
       fi
-    fi
+    done
   done
   if [ "$DRY_RUN" -eq 1 ]; then
     echo ""
@@ -100,17 +121,11 @@ if [ "$UNINSTALL" -eq 1 ]; then
   exit 0
 fi
 
-# Ensure target subdirectories exist
-for dir in "${DIRS[@]}"; do
-  mkdir -p "$TARGET_DIR/$dir"
-done
-
-# Download and extract repo tarball
+# Download and extract repo tarball (once, shared across targets)
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 log_verbose "Created temp directory: $TMP_DIR"
-log_verbose "Target directory: $TARGET_DIR"
 
 # Validate URL before downloading
 validate_url "$REPO_TARBALL" || exit 1
@@ -150,113 +165,123 @@ if [ ! -d "$EXTRACTED_DIR" ]; then
 fi
 log_verbose "Extracted to: $EXTRACTED_DIR"
 
-# Compare and show changes
-echo ""
-# Create backup if requested
-if [ "$BACKUP" -eq 1 ]; then
-  BACKUP_DIR="$TARGET_DIR/backup-$(date +%Y-%m-%d-%H%M%S)"
-  if [ "$DRY_RUN" -eq 1 ]; then
-    echo "Would create backup at: $BACKUP_DIR"
-  else
-    mkdir -p "$BACKUP_DIR"
-    for dir in "${DIRS[@]}"; do
-      if [ -d "$TARGET_DIR/$dir" ] && [ "$(ls -A "$TARGET_DIR/$dir" 2>/dev/null)" ]; then
-        cp -r "$TARGET_DIR/$dir" "$BACKUP_DIR/"
-      fi
-    done
-    echo "Backup created: $BACKUP_DIR"
-  fi
+# Process each target directory
+for TARGET_DIR in "${TARGET_DIRS[@]}"; do
   echo ""
-fi
+  echo "=== Target: $TARGET_DIR ==="
 
-NEW_FILES=()
-MODIFIED_FILES=()
-LOCAL_ONLY=()
-UNCHANGED=0
-
-for dir in "${DIRS[@]}"; do
-  # Check for new/modified from repo
-  if [ -d "$EXTRACTED_DIR/$dir" ]; then
-    for file in "$EXTRACTED_DIR/$dir"/*; do
-      [ -f "$file" ] || continue
-      filename=$(basename "$file")
-      target_file="$TARGET_DIR/$dir/$filename"
-
-      if [ ! -f "$target_file" ]; then
-        NEW_FILES+=("$dir/$filename")
-      elif ! diff -q "$file" "$target_file" > /dev/null 2>&1; then
-        MODIFIED_FILES+=("$dir/$filename")
-      else
-        ((UNCHANGED++)) || true
-      fi
-    done
-  fi
-
-  # Check for local-only files (exist locally but not in repo)
-  if [ -d "$TARGET_DIR/$dir" ]; then
-    for file in "$TARGET_DIR/$dir"/*; do
-      [ -f "$file" ] || continue
-      filename=$(basename "$file")
-
-      # Skip .zip files (artifacts)
-      [[ "$filename" == *.zip ]] && continue
-
-      repo_file="$EXTRACTED_DIR/$dir/$filename"
-
-      if [ ! -f "$repo_file" ]; then
-        LOCAL_ONLY+=("$dir/$filename")
-      fi
-    done
-  fi
-done
-
-# Show results
-if [ ${#NEW_FILES[@]} -gt 0 ]; then
-  echo "New files:"
-  for f in "${NEW_FILES[@]}"; do echo "   + $f"; done
-fi
-
-if [ ${#MODIFIED_FILES[@]} -gt 0 ]; then
-  echo "Modified:"
-  for f in "${MODIFIED_FILES[@]}"; do echo "   ~ $f"; done
-fi
-
-if [ ${#LOCAL_ONLY[@]} -gt 0 ]; then
-  echo "Local only (not in repo):"
-  for f in "${LOCAL_ONLY[@]}"; do echo "   ? $f"; done
-fi
-
-if [ "$DRY_RUN" -eq 1 ]; then
-  echo ""
-  echo "DRY RUN - No changes will be made"
-fi
-
-if [ ${#NEW_FILES[@]} -eq 0 ] && [ ${#MODIFIED_FILES[@]} -eq 0 ]; then
-  echo "Already up to date ($UNCHANGED files)"
-elif [ "$DRY_RUN" -eq 1 ]; then
-  echo "Would update: ${#NEW_FILES[@]} new, ${#MODIFIED_FILES[@]} modified, $UNCHANGED unchanged"
-else
-  # Actually copy the files
-  echo ""
-  echo "Installing into $TARGET_DIR..."
+  # Ensure target subdirectories exist
   for dir in "${DIRS[@]}"; do
+    mkdir -p "$TARGET_DIR/$dir"
+  done
+
+  log_verbose "Target directory: $TARGET_DIR"
+
+  # Create backup if requested
+  if [ "$BACKUP" -eq 1 ]; then
+    BACKUP_DIR="$TARGET_DIR/backup-$(date +%Y-%m-%d-%H%M%S)"
+    if [ "$DRY_RUN" -eq 1 ]; then
+      echo "Would create backup at: $BACKUP_DIR"
+    else
+      mkdir -p "$BACKUP_DIR"
+      for dir in "${DIRS[@]}"; do
+        if [ -d "$TARGET_DIR/$dir" ] && [ "$(ls -A "$TARGET_DIR/$dir" 2>/dev/null)" ]; then
+          cp -r "$TARGET_DIR/$dir" "$BACKUP_DIR/"
+        fi
+      done
+      echo "Backup created: $BACKUP_DIR"
+    fi
+    echo ""
+  fi
+
+  NEW_FILES=()
+  MODIFIED_FILES=()
+  LOCAL_ONLY=()
+  UNCHANGED=0
+
+  for dir in "${DIRS[@]}"; do
+    # Check for new/modified from repo (recursive to handle directory-based skills)
     if [ -d "$EXTRACTED_DIR/$dir" ]; then
-      cp -r "$EXTRACTED_DIR/$dir/." "$TARGET_DIR/$dir/"
+      while IFS= read -r -d '' file; do
+        relpath="${file#"$EXTRACTED_DIR/"}"
+        target_file="$TARGET_DIR/$relpath"
+
+        if [ ! -f "$target_file" ]; then
+          NEW_FILES+=("$relpath")
+        elif ! diff -q "$file" "$target_file" > /dev/null 2>&1; then
+          MODIFIED_FILES+=("$relpath")
+        else
+          ((UNCHANGED++)) || true
+        fi
+      done < <(find "$EXTRACTED_DIR/$dir" -type f -print0)
+    fi
+
+    # Check for local-only files (recursive, exist locally but not in repo)
+    if [ -d "$TARGET_DIR/$dir" ]; then
+      while IFS= read -r -d '' file; do
+        relpath="${file#"$TARGET_DIR/"}"
+        filename=$(basename "$file")
+
+        # Skip .zip files (artifacts)
+        [[ "$filename" == *.zip ]] && continue
+
+        repo_file="$EXTRACTED_DIR/$relpath"
+
+        if [ ! -f "$repo_file" ]; then
+          LOCAL_ONLY+=("$relpath")
+        fi
+      done < <(find "$TARGET_DIR/$dir" -type f -print0)
     fi
   done
-  echo "Updated: ${#NEW_FILES[@]} new, ${#MODIFIED_FILES[@]} modified, $UNCHANGED unchanged"
-fi
 
-# Cleanup: remove .zip artifacts from skills directory (skip in dry-run, only if skills are processed)
-SKILLS_SELECTED=0
-for d in "${DIRS[@]}"; do
-  [ "$d" = "skills" ] && SKILLS_SELECTED=1
-done
-
-if [ "$DRY_RUN" -eq 0 ] && [ "$SKILLS_SELECTED" -eq 1 ]; then
-  ZIP_COUNT=$(find "$TARGET_DIR/skills" -name "*.zip" 2>/dev/null | wc -l)
-  if [ "$ZIP_COUNT" -gt 0 ]; then
-    rm -f "$TARGET_DIR/skills"/*.zip
-    echo "Cleaned up $ZIP_COUNT .zip artifact(s)"
+  # Show results
+  if [ ${#NEW_FILES[@]} -gt 0 ]; then
+    echo "New files:"
+    for f in "${NEW_FILES[@]}"; do echo "   + $f"; done
   fi
-fi
+
+  if [ ${#MODIFIED_FILES[@]} -gt 0 ]; then
+    echo "Modified:"
+    for f in "${MODIFIED_FILES[@]}"; do echo "   ~ $f"; done
+  fi
+
+  if [ ${#LOCAL_ONLY[@]} -gt 0 ]; then
+    echo "Local only (not in repo):"
+    for f in "${LOCAL_ONLY[@]}"; do echo "   ? $f"; done
+  fi
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo ""
+    echo "DRY RUN - No changes will be made"
+  fi
+
+  if [ ${#NEW_FILES[@]} -eq 0 ] && [ ${#MODIFIED_FILES[@]} -eq 0 ]; then
+    echo "Already up to date ($UNCHANGED files)"
+  elif [ "$DRY_RUN" -eq 1 ]; then
+    echo "Would update: ${#NEW_FILES[@]} new, ${#MODIFIED_FILES[@]} modified, $UNCHANGED unchanged"
+  else
+    # Actually copy the files
+    echo ""
+    echo "Installing into $TARGET_DIR..."
+    for dir in "${DIRS[@]}"; do
+      if [ -d "$EXTRACTED_DIR/$dir" ]; then
+        cp -r "$EXTRACTED_DIR/$dir/." "$TARGET_DIR/$dir/"
+      fi
+    done
+    echo "Updated: ${#NEW_FILES[@]} new, ${#MODIFIED_FILES[@]} modified, $UNCHANGED unchanged"
+  fi
+
+  # Cleanup: remove .zip artifacts from skills directory (skip in dry-run, only if skills are processed)
+  SKILLS_SELECTED=0
+  for d in "${DIRS[@]}"; do
+    [ "$d" = "skills" ] && SKILLS_SELECTED=1
+  done
+
+  if [ "$DRY_RUN" -eq 0 ] && [ "$SKILLS_SELECTED" -eq 1 ] && [ -d "$TARGET_DIR/skills" ]; then
+    ZIP_COUNT=$(find "$TARGET_DIR/skills" -name "*.zip" 2>/dev/null | wc -l)
+    if [ "$ZIP_COUNT" -gt 0 ]; then
+      rm -f "$TARGET_DIR/skills"/*.zip
+      echo "Cleaned up $ZIP_COUNT .zip artifact(s)"
+    fi
+  fi
+done

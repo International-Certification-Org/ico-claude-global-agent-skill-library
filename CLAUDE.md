@@ -61,3 +61,41 @@ Reference agents and skills in prompts:
 - **Python/JavaScript** - Backend and scripting languages
 - **Database** - Forward-only migrations
 - **REST APIs** - Integration with external services
+
+## Mandatory: Milestone-Based Issue Lifecycle
+
+**All issues in this repo MUST follow the milestone-based lifecycle. No exceptions.**
+
+Every issue gets exactly ONE milestone at a time representing its current state. Milestones are progressed in order — no skipping states.
+
+### Lifecycle Flow
+
+```
+new -> planned -> plan-approved -> test-designed -> test-design-approved
+  -> implemented -> tested-success / tested-failed -> test-approved -> DONE
+```
+
+### Milestone Definitions
+
+| Milestone | Set By | Meaning |
+|-----------|--------|---------|
+| `new` | Team Lead | Issue created, not yet planned |
+| `planned` | Team Lead | Agent submitted a plan (posted as issue comment) |
+| `plan-approved` | Team Lead + Codex | Both reviewed and approved the plan |
+| `test-designed` | Team Lead | Agent submitted test design as issue comment |
+| `test-design-approved` | Team Lead + Codex | Both approved test design |
+| `implemented` | Team Lead | Code written, agent reports completion |
+| `tested-success` | Team Lead | All tests pass |
+| `tested-failed` | Team Lead | Tests fail — bounces back with documented reason |
+| `test-approved` | Team Lead + Codex | Final automated gate — independent verification passed |
+| `DONE` | **Human only** | Final sign-off. Agents NEVER set this. |
+
+### Non-Negotiable Rules
+
+1. **One milestone at a time** per issue — no skipping states
+2. **Dual approval required** at every gate — Team Lead AND Codex must both approve
+3. **`DONE` is human-only** — agents must NEVER set this milestone
+4. **One issue per discrete change** — all phases documented as comments on that issue
+5. **Audit trail** — every Codex response posted as comment on the GitHub Issue
+6. **On failure**: `tested-failed` bounces back to `planned` (wrong approach) or `implemented` (code bug), with documented reason
+7. **If Codex unavailable**: STOP and notify user. Do NOT proceed without Codex review.

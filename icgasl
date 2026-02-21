@@ -3,7 +3,10 @@
 # icgasl - ICO Claude Global Agents & Skills Library
 #
 # Usage:
-#   icgasl                   Install/update agents & skills
+#   icgasl                   Install/update agents & skills (interactive target prompt)
+#   icgasl --global          Install to ~/.claude/ (all projects)
+#   icgasl --local           Install to ./.claude/ (this project only)
+#   icgasl --local --global  Install to both locations
 #   icgasl --dry-run         Show what would change without applying
 #   icgasl --only-agents     Install only agents
 #   icgasl --only-skills     Install only skills
@@ -26,7 +29,10 @@ show_help() {
   echo "icgasl - ICO Claude Global Agents & Skills Library"
   echo ""
   echo "Usage:"
-  echo "  icgasl                   Install/update agents & skills"
+  echo "  icgasl                   Install/update (interactive target prompt)"
+  echo "  icgasl --global          Install to ~/.claude/ (all projects)"
+  echo "  icgasl --local           Install to ./.claude/ (this project only)"
+  echo "  icgasl --local --global  Install to both locations"
   echo "  icgasl --dry-run         Show what would change without applying"
   echo "  icgasl --only-agents     Install only agents"
   echo "  icgasl --only-skills     Install only skills"
@@ -37,6 +43,9 @@ show_help() {
   echo "  icgasl --verbose         Show detailed debug output"
   echo "  icgasl --version         Show version"
   echo "  icgasl --help            Show this help"
+  echo ""
+  echo "Environment:"
+  echo "  ICGASL_TARGET=global|local|both  Override target (CLI flags take precedence)"
 }
 
 show_version() {
@@ -91,7 +100,7 @@ for arg in "$@"; do
       show_version
       exit 0
       ;;
-    --dry-run|--backup|--uninstall|--verbose|--only-agents|--only-skills|--only-runbooks|--only-templates)
+    --dry-run|--backup|--uninstall|--verbose|--local|--global|--only-agents|--only-skills|--only-runbooks|--only-templates)
       FLAGS+=("$arg")
       ;;
     *)

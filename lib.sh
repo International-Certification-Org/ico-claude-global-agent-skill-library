@@ -264,7 +264,7 @@ get_loaded_checksum() {
   echo "${LOADED_CHECKSUMS[$filename]:-}"
 }
 
-# Determine the target directory for Claude configuration
+# Determine the global target directory for Claude configuration
 # Usage: target=$(get_target_dir)
 get_target_dir() {
   if [[ -d "$HOME/.config/claude" ]]; then
@@ -272,6 +272,75 @@ get_target_dir() {
   else
     echo "$HOME/.claude"
   fi
+}
+
+# Determine the local (project-level) target directory
+# Usage: target=$(get_local_target_dir)
+get_local_target_dir() {
+  echo "./.claude"
+}
+
+# Resolve target directories based on flags, env var, or interactive prompt
+# Usage: dirs=$(resolve_target_dirs "$FLAG_LOCAL" "$FLAG_GLOBAL")
+# Arguments: FLAG_LOCAL (0|1), FLAG_GLOBAL (0|1)
+# Environment: ICGASL_TARGET (global|local|both) - overridden by flags
+# Returns: newline-separated list of target directories
+resolve_target_dirs() {
+  local flag_local="${1:-0}"
+  local flag_global="${2:-0}"
+
+  # CLI flags take precedence
+  if [[ "$flag_local" -eq 1 ]] && [[ "$flag_global" -eq 1 ]]; then
+    get_target_dir
+    get_local_target_dir
+    return 0
+  elif [[ "$flag_local" -eq 1 ]]; then
+    get_local_target_dir
+    return 0
+  elif [[ "$flag_global" -eq 1 ]]; then
+    get_target_dir
+    return 0
+  fi
+
+  # Check environment variable
+  if [[ -n "${ICGASL_TARGET:-}" ]]; then
+    case "$ICGASL_TARGET" in
+      global) get_target_dir; return 0 ;;
+      local)  get_local_target_dir; return 0 ;;
+      both)   get_target_dir; get_local_target_dir; return 0 ;;
+      *)
+        echo "ERROR: Invalid ICGASL_TARGET value: $ICGASL_TARGET (expected: global|local|both)" >&2
+        return 1
+        ;;
+    esac
+  fi
+
+  # Non-interactive mode (stdin is not a TTY): default to global
+  if [[ ! -t 0 ]]; then
+    get_target_dir
+    return 0
+  fi
+
+  # Interactive prompt
+  local global_dir
+  global_dir="$(get_target_dir)"
+  echo "" >&2
+  echo "Install target for agents/skills/runbooks/templates:" >&2
+  echo "  [1] Global  - $global_dir (available in all projects)" >&2
+  echo "  [2] Local   - ./.claude/ (only this project)" >&2
+  echo "  [3] Both" >&2
+  printf "Choose [1/2/3] (default: 1): " >&2
+  local choice
+  read -r choice || choice=""
+  case "${choice:-1}" in
+    1) get_target_dir ;;
+    2) get_local_target_dir ;;
+    3) get_target_dir; get_local_target_dir ;;
+    *)
+      echo "Invalid choice, defaulting to global." >&2
+      get_target_dir
+      ;;
+  esac
 }
 
 # Create a secure temporary directory

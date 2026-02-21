@@ -15,7 +15,10 @@ Thumbs.db
 .claude.json
 claude.json
 settings.json
+settings.local.json
+.claude/settings.local.json
 
 # Build and temp directories
 tmp/
 dist/
+SHARED_TASK_NOTES.md
